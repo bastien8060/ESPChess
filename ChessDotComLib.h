@@ -334,4 +334,4 @@ void CreateGame::fen() {
 
 //ChessCom instance();
 
-//instance.createSession("Bastien_tmio","pasword123");
+

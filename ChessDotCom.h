@@ -35,7 +35,7 @@ String input(String msg, CreateGame instance) {
 int ChessComLogin() {
     //instance.createSession("test_api","bastienRES13");
     //instance.getSession("test_api","WJ2cpTpmpIGOODV");
-    instance.createSession("Noobist_007", "bastienRES13");
+    instance.createSession("Noobist_007", "bastienRES13"); //fake account btw
     Serial.print("Successfully Logged in as: ");
     Serial.println(instance.username);
     Serial.print("Session_ID: ");
