@@ -1,67 +1,74 @@
-#define BUFFPIXEL 80
+#include <Adafruit_GFX.h>    // Core graphics library
+#include <SPI.h>
+#include <Wire.h>
+#include <SD.h>
+#include "Adafruit_RA8875.h"
+#include <Adafruit_STMPE610.h>
+#define sd_cs 6                          // uding ethernet shield sd
 
-int screen = 0;
+// Library only supports hardware SPI at this time
+// Connect SCLK to UNO Digital #13 (Hardware SPI clock)
+// Connect MISO to UNO Digital #12 (Hardware SPI MISO)
+// Connect MOSI to UNO Digital #11 (Hardware SPI MOSI)
+#define RA8875_INT 3
+#define RA8875_CS 10
+#define RA8875_RESET 9
 
-File boot_bmp;
-File newgame_bmp;
-File computer_bmp;
-File puzzles_bmp;
+Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
 
-void loadbmp(){ //preload into ram some bmp that will fit. TESTING ONLY. REMOVE/WILL REMOVE IF CAUSING ISSUES.
-  
-  if ((newgame_bmp = SPIFFS.open("/newgame.bmp", "r")) == NULL) {
-    Serial.println(F("/newgame.bmp File not found"));
-    return;
-  }
-  
-  if ((computer_bmp = SPIFFS.open("/computer.bmp", "r")) == NULL) {
-    Serial.println(F("/computer.bmp File not found"));
-    return;
-  }
-  
-  if ((boot_bmp = SPIFFS.open("/boot.bmp", "r")) == NULL) {
-    Serial.println(F("/boot.bmp File not found"));
-    return;
-  }
-  
-  if ((puzzles_bmp = SPIFFS.open("/puzzles.bmp", "r")) == NULL) {
-    Serial.println(F("/puzzles.bmp File not found"));
+void setup () {
+  Serial.begin(9600);
+
+  if (!SD.begin(sd_cs))
+  {
+    Serial.println("initialization failed!");
     return;
   }
 
+  Serial.println("initialization done.");
+
+  Serial.println("RA8875 start");
+
+  /* Initialize the display using 'RA8875_480x80', 'RA8875_480x128', 'RA8875_480x272' or 'RA8875_800x480' */
+  if (!tft.begin(RA8875_800x480)) {
+    Serial.println("RA8875 Not Found!");
+    while (1);
+  }
+
+  Serial.println("Found RA8875");
+
+  tft.displayOn(true);
+  tft.GPIOX(true);      // Enable TFT - display enable tied to GPIOX
+  tft.PWM1config(true, RA8875_PWM_CLK_DIV1024); // PWM output for backlight
+  tft.PWM1out(255);
+
+  Serial.print("(");
+  Serial.print(tft.width());
+  Serial.print(", ");
+  Serial.print(tft.height());
+  Serial.println(")");
+  tft.graphicsMode();                 // go back to graphics mode
+  tft.fillScreen(RA8875_BLACK);
+  tft.graphicsMode();
+  bmpDraw("parrot.bmp", 0, 0);
 }
 
-// These read 16- and 32-bit types from the SD card file.
-// BMP data is stored little-endian, Arduino is little-endian too.
-// May need to reverse subscript order if porting elsewhere.
-
-uint16_t read16(File f) {
-  uint16_t result;
-  ((uint8_t *)&result)[0] = f.read(); // LSB
-  ((uint8_t *)&result)[1] = f.read(); // MSB
-  return result;
+void loop()
+{
 }
 
-uint32_t read32(File f) {
-  uint32_t result;
-  ((uint8_t *)&result)[0] = f.read(); // LSB
-  ((uint8_t *)&result)[1] = f.read();
-  ((uint8_t *)&result)[2] = f.read();
-  ((uint8_t *)&result)[3] = f.read(); // MSB
-  return result;
-}
+// This function opens a Windows Bitmap (BMP) file and
+// displays it at the given coordinates.  It's sped up
+// by reading many pixels worth of data at a time
+// (rather than pixel by pixel).  Increasing the buffer
+// size takes more of the Arduino's precious RAM but
+// makes loading a little faster.  20 pixels seems a
+// good balance.
 
-uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}
+#define BUFFPIXEL 20
 
-byte decToBcd(byte val){
-  // Convert normal decimal numbers to binary coded decimal
-  return ( (val/10*16) + (val%10) );
-}
-
-
-void bmpDraw(File bmpFile, int x, int y) {
+void bmpDraw(const char *filename, int x, int y) {
+  File     bmpFile;
   int      bmpWidth, bmpHeight;   // W+H in pixels
   uint8_t  bmpDepth;              // Bit depth (currently must be 24)
   uint32_t bmpImageoffset;        // Start of image data in file
@@ -71,7 +78,7 @@ void bmpDraw(File bmpFile, int x, int y) {
   uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer
   boolean  goodBmp = false;       // Set to true on valid header parse
   boolean  flip    = true;        // BMP is stored bottom-to-top
-  int      w, h, row, col, xpos, ypos;
+  int      w, h, row, col;
   uint8_t  r, g, b;
   uint32_t pos = 0, startTime = millis();
   uint8_t  lcdidx = 0;
@@ -79,7 +86,16 @@ void bmpDraw(File bmpFile, int x, int y) {
 
   if((x >= tft.width()) || (y >= tft.height())) return;
 
-  Serial.println(F("Loading image '"));
+  Serial.println();
+  Serial.print(F("Loading image '"));
+  Serial.print(filename);
+  Serial.println('\'');
+
+  // Open requested file on SD card
+  if ((bmpFile = SD.open(filename)) == false) {
+    Serial.println(F("File not found"));
+    return;
+  }
 
   // Parse BMP header
   if(read16(bmpFile) == 0x4D42) { // BMP signature
@@ -124,7 +140,7 @@ void bmpDraw(File bmpFile, int x, int y) {
         if((y+h-1) >= tft.height()) h = tft.height() - y;
 
         // Set TFT address window to clipped image bounds
-        ypos = y;
+
         for (row=0; row<h; row++) { // For each scanline...
           // Seek to start of scan line.  It might seem labor-
           // intensive to be doing this on every line, but this
@@ -135,20 +151,18 @@ void bmpDraw(File bmpFile, int x, int y) {
           if(flip) // Bitmap is stored bottom-to-top order (normal BMP)
             pos = bmpImageoffset + (bmpHeight - 1 - row) * rowSize;
           else     // Bitmap is stored top-to-bottom
-            pos = bmpImageoffset + row * rowSize;
-
-          if (bmpFile.position() != pos) { // Need seek?
+          pos = bmpImageoffset + row * rowSize;
+          if(bmpFile.position() != pos) { // Need seek?
             bmpFile.seek(pos);
             buffidx = sizeof(sdbuffer); // Force buffer reload
           }
-          xpos = x;
+
           for (col=0; col<w; col++) { // For each column...
             // Time to read more pixel data?
             if (buffidx >= sizeof(sdbuffer)) { // Indeed
               // Push LCD buffer to the display first
               if(lcdidx > 0) {
-                tft.drawPixels(lcdbuffer, lcdidx, xpos, ypos);
-                xpos += lcdidx;
+                tft.drawPixel(col+x, row+y, lcdbuffer[lcdidx]);
                 lcdidx = 0;
                 first  = false;
               }
@@ -161,20 +175,15 @@ void bmpDraw(File bmpFile, int x, int y) {
             b = sdbuffer[buffidx++];
             g = sdbuffer[buffidx++];
             r = sdbuffer[buffidx++];
-            lcdbuffer[lcdidx++] = color565(r,g,b);
-            if (lcdidx >= sizeof(lcdbuffer) || (xpos - x + lcdidx) >= w) {
-              tft.drawPixels(lcdbuffer, lcdidx, xpos, ypos);
-              lcdidx = 0;
-              xpos += lcdidx;
-            }
+            lcdbuffer[lcdidx] = color565(r,g,b);
+            tft.drawPixel(col+x, row+y, lcdbuffer[lcdidx]);
           } // end pixel
-            ypos++;
+
         } // end scanline
 
         // Write any remaining data to LCD
         if(lcdidx > 0) {
-          tft.drawPixels(lcdbuffer, lcdidx, xpos, ypos);
-          xpos += lcdidx;
+          tft.drawPixel(col+x, row+y, lcdbuffer[lcdidx]);
         }
 
         Serial.print(F("Loaded in "));
@@ -190,12 +199,31 @@ void bmpDraw(File bmpFile, int x, int y) {
 
 }
 
+// These read 16- and 32-bit types from the SD card file.
+// BMP data is stored little-endian, Arduino is little-endian too.
+// May need to reverse subscript order if porting elsewhere.
 
-void bmpDrawPath(const char *filename, int x, int y) {
-  File bmpFile;
-  if ((bmpFile = SPIFFS.open(filename, "r")) == false) {
-    Serial.println(F("File not found"));
-    return;
-  }
-  bmpDraw(bmpFile, x, y);
+uint16_t read16(File f) {
+  uint16_t result;
+  ((uint8_t *)&result)[0] = f.read(); // LSB
+  ((uint8_t *)&result)[1] = f.read(); // MSB
+  return result;
+}
+
+uint32_t read32(File f) {
+  uint32_t result;
+  ((uint8_t *)&result)[0] = f.read(); // LSB
+  ((uint8_t *)&result)[1] = f.read();
+  ((uint8_t *)&result)[2] = f.read();
+  ((uint8_t *)&result)[3] = f.read(); // MSB
+  return result;
+}
+
+uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+byte decToBcd(byte val){
+  // Convert normal decimal numbers to binary coded decimal
+  return ( (val/10*16) + (val%10) );
 }

@@ -2,9 +2,11 @@
 
 #include <SPI.h>
 #include <SD.h>
-#include <RA8875.h>
+#include "Adafruit_RA8875.h"
+#include <Adafruit_STMPE610.h>
 #include <Adafruit_GFX.h>
 #include <Wire.h>   
+
 #define sd_cs 3
 #define RA8875_INT 2
 #define RA8875_CS 5
@@ -15,15 +17,15 @@
   #include "SPIFFS.h"
 #endif  
 
-RA8875 tft = RA8875(RA8875_CS, RA8875_RESET); //Teensy3/arduino's
+Adafruit_RA8875 tft = Adafruit_RA8875(RA8875_CS, RA8875_RESET);
+
+#include "corelib.h" //Core
 
 #include "bmpdraw.h" //contains function to draw bmp
 
 #include "UISet.h"  //contains most UI
 
 #include "FS.h"    //FS
-
-#include "corelib.h" //Core
 
 #include "NetworkManagerLib.h" //Network Manager, Wi-Fi
 
@@ -56,11 +58,21 @@ void setup() {
 
     tft.begin(RA8875_800x480); //initialize TFT library
 
-    tft.touchBegin(RA8875_INT); //enable Touch support!
+    tft.displayOn(true);
+    tft.GPIOX(true);      // Enable TFT - display enable tied to GPIOX
+    tft.PWM1config(true, RA8875_PWM_CLK_DIV1024); // PWM output for backlight
+    tft.PWM1out(255);
+
+    pinMode(RA8875_INT, INPUT);
+    digitalWrite(RA8875_INT, HIGH);
+
+    tft.touchEnable(true); //enable Touch support!
+
+    tsCalibrate(); //calibrate touchscreen
     
     splashscreen(); //Show Splashscreen while loading.
     
-    tft.brightness(255); //brightness to max 
+    brightness(255); //brightness to max 
     
     loadbmp(); //preload big bmp from storage
     NetworkManagerStart(); //start networkmanager and connect to wifi
@@ -72,12 +84,17 @@ void loop() {
       ArduinoOTA.handle(); //Over The Air Wi-Fi Updates
     }
     
-    if (tft.touchDetect(true)) { //check if touch detected
+    if (tft.touched()) { //check if touch detected
         if ((millis() - lastDebounceTime) > debounceDelay) { //check how long ago was last touch to debounce touchscreen.
           
             lastDebounceTime = millis(); //record time of last touch.
             
-            tft.touchReadPixel( & tx, & ty); //get touch coordinates
+            tsPoint_t calibrated = getCalibratedTouch();
+          
+            /* Draw a single pixel at the calibrated point */
+            tx = calibrated.x;
+            ty = calibrated.y;
+            
             tx = 800 - tx;
             ty = 480 - ty;
 
