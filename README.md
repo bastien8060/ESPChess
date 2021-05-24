@@ -1,4 +1,11 @@
 # ESPChess
+
+---
+ **NOTE**
+ 
+This Project is a work in progress and is nowhere near being finished nor fully functional at this stage. This project right now is merely usable as is. This is a huge project, and I hope to be nearly done by the 20th of June.
+---
+
 Online MultiThreaded Chess Playing Library for ESP32.
 
 This library has some easy to use c++ API which communicates over an HTTP api. This means that with little code, you can make an arduino play on chess.com.
