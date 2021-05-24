@@ -40,5 +40,13 @@ This is the wiring done to connect an ESP32 to the RA8875.
 | Pin 11        |      D4       |
 | Pin 13        |      D2       |
 
+## Running
+
+The code should compile with ease. Only two things:
+- You need to install the Libraries saved in the Library folder to the Arduino/Platformio IDE/plugin.
+- You need to install https://github.com/me-no-dev/arduino-esp32fs-plugin. In order to Upload the Spiff from the Data Folder. Here are instructions: https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/.
+
+Then compile and run + Ta-Da
+
 
 
