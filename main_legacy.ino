@@ -75,6 +75,8 @@ void setup() {
     brightness(255); //brightness to max 
     
     loadbmp(); //preload big bmp from storage
+    
+    //powermode(LOW);
     NetworkManagerStart(); //start networkmanager and connect to wifi
     interface(); //show interface
 }

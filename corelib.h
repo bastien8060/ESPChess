@@ -15,7 +15,7 @@ void brightness(int val) {
 
 void powermode(int mode) { //change cpu clock speed and tft brightness for battery saving.
   if (mode == LOW) {
-    brightness(60);
+    brightness(50);
     setCpuFrequencyMhz(80);
   }
   if (mode == HIGH) {
